@@ -40,10 +40,34 @@ pub fn part1(allocator: *Allocator) !void {
     std.log.info("part1 {}", .{pair[0] * pair[1]});
 }
 
+pub fn findTriple(entries: []const u32, sum: u32) ![3]u32 {
+    var i: usize = 0;
+    while (i < entries.len) : (i += 1) {
+        var j: usize = i + 1;
+        while (j < entries.len) : (j += 1) {
+            var k: usize = j + 1;
+            while (k < entries.len) : (k += 1) {
+                if (entries[i] + entries[j] + entries[k] == sum) {
+                    return [3]u32{ entries[i], entries[j], entries[k] };
+                }
+            }
+        }
+    }
+    return error.TripleNotFound;
+}
+
+pub fn part2(allocator: *Allocator) !void {
+    const entries = try readInput(allocator);
+    const triple = try findTriple(entries.items, 2020);
+
+    std.log.info("part2 {}", .{triple[0] * triple[1] * triple[2]});
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var allocator = &gpa.allocator;
     try part1(allocator);
+    try part2(allocator);
 }
 
 test "part1 example" {
@@ -58,4 +82,18 @@ test "part1 example" {
     const pair = try findPair(entries[0..], 2020);
     std.testing.expect((pair[0] == 1721 and pair[1] == 299) or (pair[1] == 1721 and pair[0] == 299));
     std.testing.expect(pair[0] * pair[1] == 514579);
+}
+
+test "part2 example" {
+    const entries = [_]u32{
+        1721,
+        979,
+        366,
+        299,
+        675,
+        1456,
+    };
+    const triple = try findTriple(entries[0..], 2020);
+    std.testing.expect(triple[0] == 979 and triple[1] == 366 and triple[2] == 675);
+    std.testing.expect(triple[0] * triple[1] * triple[2] == 241861950);
 }
