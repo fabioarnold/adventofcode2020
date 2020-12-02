@@ -77,15 +77,35 @@ fn validPasswords(policies: []const []const u8) u32 {
     return num_valid;
 }
 
+fn validPasswords2(policies: []const []const u8) u32 {
+    var num_valid: u32 = 0;
+
+    for (policies) |policy| {
+        const p = Policy.fromString(policy);
+
+        if ((p.password[p.low - 1] == p.char) != (p.password[p.high - 1] == p.char)) {
+            num_valid += 1;
+        }
+    }
+
+    return num_valid;
+}
+
 fn part1(allocator: *Allocator) !void {
     var policies = try readPolicies(allocator);
     print("part1: {}\n", .{validPasswords(policies.items)});
+}
+
+fn part2(allocator: *Allocator) !void {
+    var policies = try readPolicies(allocator);
+    print("part2: {}\n", .{validPasswords2(policies.items)});
 }
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var allocator = &gpa.allocator;
     try part1(allocator);
+    try part2(allocator);
 }
 
 test "part1 example" {
@@ -95,4 +115,13 @@ test "part1 example" {
         "2-9 c: ccccccccc",
     };
     std.testing.expect(validPasswords(policies[0..]) == 2);
+}
+
+test "part2 example" {
+    const policies = [_][]const u8 {
+        "1-3 a: abcde",
+        "1-3 b: cdefg",
+        "2-9 c: ccccccccc",
+    };
+    std.testing.expect(validPasswords2(policies[0..]) == 1);
 }
