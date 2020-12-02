@@ -3,125 +3,72 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 const print = std.debug.print;
+const input = @embedFile("../input/day02.txt");
 
-const EOL = '\n';
-
-fn readPolicies(allocator: *Allocator) !ArrayList([]const u8) {
-    var entries = ArrayList([]const u8).init(allocator);
-
-    const file = try std.fs.cwd().openFile("input/day02.txt", .{});
-    defer file.close();
-    const reader = file.reader();
-    var line_buf: [100]u8 = undefined;
-    while (try reader.readUntilDelimiterOrEof(&line_buf, EOL)) |line| {
-        const policy = try allocator.dupe(u8, std.mem.trim(u8, line[0..], std.ascii.spaces[0..]));
-        try entries.append(policy);
+fn readPolicies(allocator: *Allocator) !ArrayList(Policy) {
+    var policies = ArrayList(Policy).init(allocator);
+    var lines = std.mem.tokenize(input, "\n");
+    while (lines.next()) |line| {
+        try policies.append(try Policy.initFromString(line));
     }
-
-    return entries;
+    return policies;
 }
 
 const Policy = struct {
-    low: u8,
-    high: u8,
+    min: u8,
+    max: u8,
     char: u8,
     password: []const u8,
 
-    pub fn fromString(policy: []const u8) Policy {
-        var i: usize = 0;
-        var low = policy[i] - '0';
-        i += 1;
-        if (policy[i] != '-') {
-            low *= 10;
-            low += policy[i] - '0';
-            i += 1;
-        }
-        i += 1;
-        var high = policy[i] - '0';
-        i += 1;
-        if (policy[i] != ' ') {
-            high *= 10;
-            high += policy[i] - '0';
-            i += 1;
-        }
-        i += 1;
-        const char = policy[i];
-        i += 3;
-        const password = policy[i..];
+    pub fn initFromString(string: []const u8) !Policy {
+        const min_end = std.mem.indexOfScalar(u8, string, '-').?;
+        const min = try std.fmt.parseUnsigned(u8, string[0..min_end], 10);
+        const max_start = min_end + 1;
+        const max_end = max_start + std.mem.indexOfScalar(u8, string[max_start..], ' ').?;
+        const max = try std.fmt.parseUnsigned(u8, string[max_start..max_end], 10);
 
-        return .{
-            .low = low,
-            .high = high,
-            .char = char,
-            .password = password,
+        return Policy{
+            .min = min,
+            .max = max,
+            .char = string[max_end + 1],
+            .password = string[max_end + 4..],
         };
+    }
+
+    pub fn checkRule1(self: Policy) bool {
+        var num_char: usize = 0;
+        for (self.password) |c| {
+            if (c == self.char) num_char += 1;
+        }
+        return self.min <= num_char and num_char <= self.max;
+    }
+
+    pub fn checkRule2(self: Policy) bool {
+        return (self.password[self.min - 1] == self.char) != (self.password[self.max - 1] == self.char);
     }
 };
 
-fn validPasswords(policies: []const []const u8) u32 {
-    var num_valid: u32 = 0;
-
-    for (policies) |policy| {
-        const p = Policy.fromString(policy);
-
-        var num_char: u32 = 0;
-        for (p.password) |c| {
-            if (c == p.char) num_char += 1;
-        }
-
-        if (p.low <= num_char and num_char <= p.high) {
-            num_valid += 1;
-        }
-    }
-
-    return num_valid;
-}
-
-fn validPasswords2(policies: []const []const u8) u32 {
-    var num_valid: u32 = 0;
-
-    for (policies) |policy| {
-        const p = Policy.fromString(policy);
-
-        if ((p.password[p.low - 1] == p.char) != (p.password[p.high - 1] == p.char)) {
-            num_valid += 1;
-        }
-    }
-
-    return num_valid;
-}
-
-fn part1(allocator: *Allocator) !void {
-    var policies = try readPolicies(allocator);
-    print("part1: {}\n", .{validPasswords(policies.items)});
-}
-
-fn part2(allocator: *Allocator) !void {
-    var policies = try readPolicies(allocator);
-    print("part2: {}\n", .{validPasswords2(policies.items)});
-}
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var allocator = &gpa.allocator;
-    try part1(allocator);
-    try part2(allocator);
+    var policies = try readPolicies(&gpa.allocator);
+    var part1: usize = 0;
+    var part2: usize = 0;
+    for (policies.items) |policy| {
+        if (policy.checkRule1()) part1 += 1;
+        if (policy.checkRule2()) part2 += 1;
+    }
+    print("part1: {}\n", .{part1});
+    print("part2: {}\n", .{part2});
 }
 
 test "part1 example" {
-    const policies = [_][]const u8 {
-        "1-3 a: abcde",
-        "1-3 b: cdefg",
-        "2-9 c: ccccccccc",
-    };
-    std.testing.expect(validPasswords(policies[0..]) == 2);
+    std.testing.expect((try Policy.initFromString("1-3 a: abcde")).checkRule1() == true);
+    std.testing.expect((try Policy.initFromString("1-3 b: cdefg")).checkRule1() == false);
+    std.testing.expect((try Policy.initFromString("2-9 c: ccccccccc")).checkRule1() == true);
 }
 
 test "part2 example" {
-    const policies = [_][]const u8 {
-        "1-3 a: abcde",
-        "1-3 b: cdefg",
-        "2-9 c: ccccccccc",
-    };
-    std.testing.expect(validPasswords2(policies[0..]) == 1);
+    std.testing.expect((try Policy.initFromString("1-3 a: abcde")).checkRule2() == true);
+    std.testing.expect((try Policy.initFromString("1-3 b: cdefg")).checkRule2() == false);
+    std.testing.expect((try Policy.initFromString("2-9 c: ccccccccc")).checkRule2() == false);
 }
