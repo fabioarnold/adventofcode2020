@@ -9,7 +9,7 @@ const EOL = '\n';
 pub fn readInput(allocator: *Allocator) !ArrayList(u32) {
     var entries = ArrayList(u32).init(allocator);
 
-    const file = try std.fs.cwd().openFile("input.txt", .{});
+    const file = try std.fs.cwd().openFile("input/day01.txt", .{});
     defer file.close();
     const reader = file.reader();
     var line_buf: [20]u8 = undefined;
@@ -37,7 +37,7 @@ pub fn part1(allocator: *Allocator) !void {
     const entries = try readInput(allocator);
     const pair = try findPair(entries.items, 2020);
 
-    std.log.info("part1 {}", .{pair[0] * pair[1]});
+    print("part1 {}\n", .{pair[0] * pair[1]});
 }
 
 pub fn findTriple(entries: []const u32, sum: u32) ![3]u32 {
@@ -60,7 +60,7 @@ pub fn part2(allocator: *Allocator) !void {
     const entries = try readInput(allocator);
     const triple = try findTriple(entries.items, 2020);
 
-    std.log.info("part2 {}", .{triple[0] * triple[1] * triple[2]});
+    print("part2 {}\n", .{triple[0] * triple[1] * triple[2]});
 }
 
 pub fn main() !void {
