@@ -4,111 +4,121 @@ const assert = std.debug.assert;
 const print = std.debug.print;
 const input = @embedFile("../input/day04.txt");
 
-fn validPassport(passport: []const u8) bool {
-    const has_byr = std.mem.indexOf(u8, passport, "byr:") != null;
-    const has_iyr = std.mem.indexOf(u8, passport, "iyr:") != null;
-    const has_eyr = std.mem.indexOf(u8, passport, "eyr:") != null;
-    const has_hgt = std.mem.indexOf(u8, passport, "hgt:") != null;
-    const has_hcl = std.mem.indexOf(u8, passport, "hcl:") != null;
-    const has_ecl = std.mem.indexOf(u8, passport, "ecl:") != null;
-    const has_pid = std.mem.indexOf(u8, passport, "pid:") != null;
-    const has_cid = std.mem.indexOf(u8, passport, "cid:") != null;
-    return has_byr and has_iyr and has_eyr and has_hgt and has_hcl and has_ecl and has_pid;
-}
+const Passport = struct {
+    byr: ?[]const u8 = null,
+    iyr: ?[]const u8 = null,
+    eyr: ?[]const u8 = null,
+    hgt: ?[]const u8 = null,
+    hcl: ?[]const u8 = null,
+    ecl: ?[]const u8 = null,
+    pid: ?[]const u8 = null,
+    //cid: ?[]const u8 = null,
 
-fn validPassport2(passport: []const u8) bool {
-    if (!validPassport(passport)) return false;
-    var iter = std.mem.tokenize(passport, " \n");
-    while (iter.next()) |token| {
-        if (token.len < 4) return false;
-        const identifier = token[0..3];
-        if (std.mem.eql(u8, identifier, "byr")) {
-            if (token.len != 8) return false;
-            const byr = std.fmt.parseUnsigned(usize, token[4..8], 10) catch |_| return false;
-            if (byr < 1920 or byr > 2002) return false;
-        } else if (std.mem.eql(u8, identifier, "iyr")) {
-            if (token.len != 8) return false;
-            const iyr = std.fmt.parseUnsigned(usize, token[4..8], 10) catch |_| return false;
-            if (iyr < 2010 or iyr > 2020) return false;
-        } else if (std.mem.eql(u8, identifier, "eyr")) {
-            if (token.len != 8) return false;
-            const eyr = std.fmt.parseUnsigned(usize, token[4..8], 10) catch |_| return false;
-            if (eyr < 2020 or eyr > 2030) return false;
-        } else if (std.mem.eql(u8, identifier, "hgt")) {
-            if (token.len < 8) return false;
-            const hgt_unit = token[token.len - 2..token.len];
-            const hgt_value = std.fmt.parseUnsigned(usize, token[4..token.len - 2], 10) catch |_| return false;
-            if (std.mem.eql(u8, hgt_unit, "cm")) {
-                if (hgt_value < 150 or hgt_value > 193) return false;
-            } else if (std.mem.eql(u8, hgt_unit, "in")) {
-                if (hgt_value < 59 or hgt_value > 76) return false;
-            } else {
-                return false;
-            }
-        } else if (std.mem.eql(u8, identifier, "hcl")) {
-            if (token.len != 4 + 7) return false;
-            if (token[4] != '#') return false;
-            const color = token[5..11];
-            for (color) |c| {
-                if (!(('0' <= c and c <= '9') or ('a' <= c and c <= 'f'))) return false;
-            }
-        } else if (std.mem.eql(u8, identifier, "ecl")) {
-            if (token.len != 7) return false;
-            const valid_ecls = [_][]const u8{"amb", "blu", "brn", "gry", "grn", "hzl", "oth"};
-            const ecl = token[4..7];
-            var ecl_found = false;
-            for (valid_ecls) |valid_ecl| {
-                if (std.mem.eql(u8, ecl, valid_ecl)) {
-                    ecl_found = true;
-                    break;
+    pub fn initFromString(string: []const u8) !Passport {
+        var self = Passport{};
+
+        var iter = std.mem.tokenize(string, " \n");
+        while (iter.next()) |token| {
+            const i = std.mem.indexOfScalar(u8, token, ':') orelse return error.InvalidToken;
+            const identifier = token[0..i];
+            const value = token[i + 1..];
+            inline for (std.meta.fields(Passport)) |field| {
+                if (std.mem.eql(u8, identifier, field.name)) {
+                    @field(self, field.name) = value;
                 }
             }
-            if (!ecl_found) return false;
-        } else if (std.mem.eql(u8, identifier, "pid")) {
-            if (token.len != 13) return false;
-            const pid = token[4..13];
-            for (pid) |c| {
-                if (!('0' <= c and c <= '9')) return false;
-            }
         }
+
+        return self;
     }
 
-    return true;
+    pub fn isComplete(self: Passport) bool {
+        inline for (std.meta.fields(Passport)) |field| {
+            if (@field(self, field.name) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    pub fn isValid(self: Passport) bool {
+        if (!self.isComplete()) return false;
+
+        const byr = std.fmt.parseUnsigned(usize, self.byr.?, 10) catch |_| return false;
+        if (byr < 1920 or byr > 2002) return false;
+
+        const iyr = std.fmt.parseUnsigned(usize, self.iyr.?, 10) catch |_| return false;
+        if (iyr < 2010 or iyr > 2020) return false;
+
+        const eyr = std.fmt.parseUnsigned(usize, self.eyr.?, 10) catch |_| return false;
+        if (eyr < 2020 or eyr > 2030) return false;
+
+        if (self.hgt.?.len < 3) return false;
+        const hgt_unit = self.hgt.?[self.hgt.?.len - 2..self.hgt.?.len];
+        const hgt_value = std.fmt.parseUnsigned(usize, self.hgt.?[0..self.hgt.?.len - 2], 10) catch |_| return false;
+        if (std.mem.eql(u8, hgt_unit, "cm")) {
+            if (hgt_value < 150 or hgt_value > 193) return false;
+        } else if (std.mem.eql(u8, hgt_unit, "in")) {
+            if (hgt_value < 59 or hgt_value > 76) return false;
+        } else {
+            return false;
+        }
+
+        if (self.hcl.?.len != 7) return false;
+        if (self.hcl.?[0] != '#') return false;
+        for (self.hcl.?[1..]) |c| {
+            if (!(('0' <= c and c <= '9') or ('a' <= c and c <= 'f'))) return false;
+        }
+
+        if (self.ecl.?.len != 3) return false;
+        const valid_ecls = [_][]const u8{"amb", "blu", "brn", "gry", "grn", "hzl", "oth"};
+        var ecl_found = false;
+        for (valid_ecls) |valid_ecl| {
+            if (std.mem.eql(u8, self.ecl.?, valid_ecl)) {
+                ecl_found = true;
+                break;
+            }
+        }
+        if (!ecl_found) return false;
+
+        if (self.pid.?.len != 9) return false;
+        for (self.pid.?) |c| {
+            if (!('0' <= c and c <= '9')) return false;
+        }
+
+        return true;
+    }
+};
+
+fn completePassports(string: []const u8) usize {
+    var count: usize = 0;
+
+    const sep = "\n\n";
+    var iter = std.mem.split(string, sep);
+    while (iter.next()) |token| {
+        const passport = Passport.initFromString(token) catch |_| continue;
+        if (passport.isComplete()) count += 1;
+    }
+
+    return count;
 }
 
 fn validPassports(string: []const u8) usize {
     var count: usize = 0;
 
     const sep = "\n\n";
-    var i: usize = 0;
-    while (std.mem.indexOf(u8, string[i..], sep)) |found| : (i += found + sep.len) {
-        const passport = string[i..i + found];
-        if (validPassport(passport)) count += 1;
+    var iter = std.mem.split(string, sep);
+    while (iter.next()) |token| {
+        const passport = Passport.initFromString(token) catch |_| continue;
+        if (passport.isValid()) count += 1;
     }
-    const passport = string[i..];
-    if (validPassport(passport)) count += 1;
-
-    return count;
-}
-
-fn validPassports2(string: []const u8) usize {
-    var count: usize = 0;
-
-    const sep = "\n\n";
-    var i: usize = 0;
-    while (std.mem.indexOf(u8, string[i..], sep)) |found| : (i += found + sep.len) {
-        const passport = string[i..i + found];
-        if (validPassport2(passport)) count += 1;
-    }
-    const passport = string[i..];
-    if (validPassport2(passport)) count += 1;
 
     return count;
 }
 
 pub fn main() !void {
-    print("part1 {}\n", .{validPassports(input)});
-    print("part2 {}\n", .{validPassports2(input)});
+    print("part1 {}\n", .{completePassports(input)});
+    print("part2 {}\n", .{validPassports(input)});
 }
 
 const example =
@@ -128,7 +138,7 @@ const example =
 ;
 
 test "part1 example" {
-    std.testing.expect(validPassports(example) == 2);
+    std.testing.expect(completePassports(example) == 2);
 }
 
 const example_invalid =
@@ -163,6 +173,6 @@ const example_valid =
 ;
 
 test "part2 examples" {
-    std.testing.expect(validPassports2(example_invalid) == 0);
-    std.testing.expect(validPassports2(example_valid) == 4);
+    std.testing.expect(validPassports(example_invalid) == 0);
+    std.testing.expect(validPassports(example_valid) == 4);
 }
