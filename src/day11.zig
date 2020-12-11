@@ -21,40 +21,7 @@ fn printGrid(buf: []u8) void {
     }
 }
 
-fn isOccupied(grid: []u8, x: i32, y: i32) bool {
-    if (x < 0 or y < 0 or x >= w or y >= h) return false;
-    const safe_x = @intCast(usize, x);
-    const safe_y = @intCast(usize, y);
-    return grid[safe_y * w + safe_x] == '#';
-}
-
-fn applyRules(in: []u8, out: []u8) void {
-    var y: i32 = 0;
-    while (y < h) : (y += 1) {
-        var x: i32 = 0;
-        while (x < w) : (x += 1) {
-            var occupied: usize = 0;
-            if (isOccupied(in, x - 1, y - 1)) occupied += 1;
-            if (isOccupied(in, x - 1, y)) occupied += 1;
-            if (isOccupied(in, x - 1, y + 1)) occupied += 1;
-            if (isOccupied(in, x, y + 1)) occupied += 1;
-            if (isOccupied(in, x + 1, y + 1)) occupied += 1;
-            if (isOccupied(in, x + 1, y)) occupied += 1;
-            if (isOccupied(in, x + 1, y - 1)) occupied += 1;
-            if (isOccupied(in, x, y - 1)) occupied += 1;
-
-            const i = @intCast(usize, y) * w + @intCast(usize, x);
-            if (in[i] == 'L' and occupied == 0) {
-                out[i] = '#';
-            }
-            if (in[i] == '#') {
-                if (occupied >= 4) out[i] = 'L';
-            }
-        }
-    }
-}
-
-fn seesOccupied(grid: []u8, sx: usize, sy: usize, dx: i32, dy: i32) bool {
+fn seesOccupied(grid: []u8, sx: usize, sy: usize, dx: i32, dy: i32, blocking_floor: bool) bool {
     var x = @intCast(i32, sx);
     var y = @intCast(i32, sy);
     while (true) {
@@ -66,32 +33,31 @@ fn seesOccupied(grid: []u8, sx: usize, sy: usize, dx: i32, dy: i32) bool {
         switch (grid[safe_y * w + safe_x]) {
             '#' => return true,
             'L' => return false,
-            else => {},
+            else => { if (blocking_floor) return false; },
         }
     }
 }
 
-fn applyRules2(in: []u8, out: []u8) void {
+fn applyRules(in: []u8, out: []u8, blocking_floor: bool, tolerance: usize) void {
     var y: usize = 0;
     while (y < h) : (y += 1) {
         var x: usize = 0;
         while (x < w) : (x += 1) {
             var occupied: usize = 0;
-            if (seesOccupied(in, x, y, -1, -1)) occupied += 1;
-            if (seesOccupied(in, x, y, -1, 0)) occupied += 1;
-            if (seesOccupied(in, x, y, -1, 1)) occupied += 1;
-            if (seesOccupied(in, x, y, 0, 1)) occupied += 1;
-            if (seesOccupied(in, x, y, 1, 1)) occupied += 1;
-            if (seesOccupied(in, x, y, 1, 0)) occupied += 1;
-            if (seesOccupied(in, x, y, 1, -1)) occupied += 1;
-            if (seesOccupied(in, x, y, 0, -1)) occupied += 1;
+            var dx: i32 = -1;
+            while (dx <= 1) : (dx += 1) {
+                var dy: i32 = -1;
+                while (dy <= 1) : (dy += 1) {
+                    if (dx == 0 and dy == 0) continue;
+                    if (seesOccupied(in, x, y, dx, dy, blocking_floor)) occupied += 1;
+                }
+            }
 
             const i = y * w + x;
-            if (in[i] == 'L' and occupied == 0) {
-                out[i] = '#';
-            }
-            if (in[i] == '#') {
-                if (occupied >= 5) out[i] = 'L';
+            switch (in[i]) {
+                'L' => {if (occupied == 0) out[i] = '#';},
+                '#' => {if (occupied >= tolerance) out[i] = 'L';},
+                else => {}
             }
         }
     }
@@ -109,40 +75,27 @@ pub fn main() !void {
     w = lines.items[0].len;
     h = lines.items.len;
 
-    var buf0 = try allocator.alloc(u8, w * h);
-    defer allocator.free(buf0);
-    for (lines.items) |line, i| {
-        std.mem.copy(u8, buf0[w * i..], line[0..w]);
-    }
-    var buf1 = try allocator.dupe(u8, buf0);
-    defer allocator.free(buf1);
-
-    var prev_occupied = std.mem.count(u8, buf0, "#");
-    while (true) {
-        std.mem.copy(u8, buf0, buf1);
-        applyRules(buf0, buf1);
-        const occupied = std.mem.count(u8, buf1, "#");
-        if (occupied == prev_occupied) {
-            print("part1: {}\n", .{occupied});
-            break;
+    var part: usize = 1;
+    while (part <= 2) : (part += 1) {
+        var buf0 = try allocator.alloc(u8, w * h);
+        defer allocator.free(buf0);
+        for (lines.items) |line, i| {
+            std.mem.copy(u8, buf0[w * i..], line[0..w]);
         }
-        prev_occupied = occupied;
-    }
+        var buf1 = try allocator.dupe(u8, buf0);
+        defer allocator.free(buf1);
 
-    for (lines.items) |line, i| {
-        std.mem.copy(u8, buf0[w * i..], line[0..w]);
-    }
-    std.mem.copy(u8, buf1, buf0);
-    prev_occupied = std.mem.count(u8, buf0, "#");
-    while (true) {
-        std.mem.copy(u8, buf0, buf1);
-        applyRules2(buf0, buf1);
-        const occupied = std.mem.count(u8, buf1, "#");
-        if (occupied == prev_occupied) {
-            print("part2: {}\n", .{occupied});
-            break;
+        var prev_occupied = std.mem.count(u8, buf0, "#");
+        while (true) {
+            std.mem.copy(u8, buf0, buf1);
+            if (part == 1) applyRules(buf0, buf1, true, 4) else  applyRules(buf0, buf1, false, 5);
+            const occupied = std.mem.count(u8, buf1, "#");
+            if (occupied == prev_occupied) {
+                print("part{}: {}\n", .{part, occupied});
+                break;
+            }
+            prev_occupied = occupied;
         }
-        prev_occupied = occupied;
     }
 }
 
